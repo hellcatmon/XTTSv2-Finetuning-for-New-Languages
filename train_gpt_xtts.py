@@ -218,20 +218,33 @@ def train_gpt(metadatas, num_epochs, batch_size, grad_acumm, output_path, max_au
     return trainer_out_path
 
 if __name__ == "__main__":
-    parser = create_xtts_trainer_parser()
-    args = parser.parse_args()
+    #parser = create_xtts_trainer_parser()
+    #args = parser.parse_args()
+
+    #hardcoded valuse
+    metadatas ='dataset-1/metadata_train.csv,dataset-1/metadata_eval.csv,be'
+    output_path = 'checkpoints/'
+    num_epochs = 5
+    batch_size = 2
+    grad_acumm = 4
+    weight_decay = 1e-2
+    lr = 5e-6
+    max_text_length = 1000
+    max_audio_length = 700000
+    save_step = 5000
+
 
     trainer_out_path = train_gpt(
-        metadatas=args.metadatas,
-        output_path=args.output_path,
-        num_epochs=args.num_epochs,
-        batch_size=args.batch_size,
-        grad_acumm=args.grad_acumm,
-        weight_decay=args.weight_decay,
-        lr=args.lr,
-        max_text_length=args.max_text_length,
-        max_audio_length=args.max_audio_length,
-        save_step=args.save_step
+        metadatas=metadatas,
+        output_path=output_path,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
+        grad_acumm=grad_acumm,
+        weight_decay=weight_decay,
+        lr=lr,
+        max_text_length=max_text_length,
+        max_audio_length=max_audio_length,
+        save_step=save_step
     )
 
     print(f"Checkpoint saved in dir: {trainer_out_path}")
