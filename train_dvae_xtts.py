@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 from TTS.tts.layers.xtts.trainer.dvae_dataset import DVAEDataset
 from torch.optim import Adam
 from torch.nn.utils import clip_grad_norm_
-from torch.nn import DataParallel
 
 from tqdm import tqdm
 from TTS.tts.datasets import load_tts_samples
@@ -88,12 +87,6 @@ def train(output_path, train_csv_path, eval_csv_path="", language="en", lr=5e-6,
             )
 
     dvae.load_state_dict(torch.load(dvae_pretrained), strict=False)
-
-    # Enable data parallelism
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs!")
-        dvae = DataParallel(dvae)
-
     dvae.cuda()
     opt = Adam(dvae.parameters(), lr = LEARNING_RATE)
     torch_mel_spectrogram_dvae = TorchMelSpectrogram(

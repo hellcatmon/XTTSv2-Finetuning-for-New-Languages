@@ -1,6 +1,5 @@
 import os
 import gc
-import torch
 
 from trainer import Trainer, TrainerArgs
 
@@ -8,7 +7,6 @@ from TTS.config.shared_configs import BaseDatasetConfig
 from TTS.tts.datasets import load_tts_samples
 from TTS.tts.layers.xtts.trainer.gpt_trainer import GPTArgs, GPTTrainer, GPTTrainerConfig, XttsAudioConfig
 from TTS.utils.manage import ModelManager
-from torch.nn import DataParallel
 
 from dataclasses import dataclass, field
 from typing import Optional
@@ -181,13 +179,6 @@ def train_gpt(metadatas, num_epochs, batch_size, grad_acumm, output_path, max_au
 
     # init the model from config
     model = GPTTrainer.init_from_config(config)
-
-    # Enable model training using multiple GPUs
-    if torch.cuda.device_count() > 1:
-        print(f"{torch.cuda.device_count()} GPUs detected, using DataParallel.")
-        model = DataParallel(model)
-
-    model = model.cuda()  # Make sure to use CUDA
 
     # load training samples
     train_samples, eval_samples = load_tts_samples(
