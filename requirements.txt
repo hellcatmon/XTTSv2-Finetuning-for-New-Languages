@@ -12,7 +12,7 @@ inflect
 tqdm
 anyascii
 pyyaml
-fsspec>=2023.6.0
+fsspec
 aiohttp
 packaging
 mutagen
@@ -22,7 +22,7 @@ flask
 pysbd
 # deps for notebooks
 umap-learn
-pandas==1.5.0
+pandas
 # deps for training
 matplotlib
 # coqui stack
@@ -35,7 +35,7 @@ pypinyin
 # korean
 hangul_romanize
 # gruut+supported langs
-gruut[de,es,fr]==2.2.3
+gruut[de,es,fr]
 # deps for korean
 jamo
 nltk
