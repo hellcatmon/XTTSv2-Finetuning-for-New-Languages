@@ -201,25 +201,16 @@ def train(output_path, train_csv_path, eval_csv_path="", language="en", lr=5e-6,
 
 
 if __name__ == "__main__":
-    #parser = HfArgumentParser(DVAETrainerArgs)
+    parser = HfArgumentParser(DVAETrainerArgs)
 
-    #args = parser.parse_args_into_dataclasses()[0]
-
-    #hardcoded parameters
-    language = 'be'
-    train_csv_path = 'dataset-1/metadata_train.csv'
-    eval_csv_path = 'dataset-1/metadata_eval.csv'
-    output_path = 'checkpoints/'
-    num_epochs = 5
-    batch_size = 128
-    lr = 5e-6
+    args = parser.parse_args_into_dataclasses()[0]
 
     trainer_out_path = train(
-        language=language,
-        train_csv_path=train_csv_path,
-        eval_csv_path=eval_csv_path,
-        output_path=output_path,
-        num_epochs=num_epochs,
-        batch_size=batch_size,
-        lr=lr
+        language=args.language,
+        train_csv_path=args.train_csv_path,
+        eval_csv_path=args.eval_csv_path,
+        output_path=args.output_path,
+        num_epochs=args.num_epochs,
+        batch_size=args.batch_size,
+        lr=args.lr
     )
