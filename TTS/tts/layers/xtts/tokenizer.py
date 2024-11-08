@@ -622,7 +622,7 @@ class VoiceBpeTokenizer:
 
     def check_input_length(self, txt, lang):
         lang = lang.split("-")[0]  # remove the region
-        limit = self.char_limits.get(lang, 300)
+        limit = self.char_limits.get(lang, 1000)
         if len(txt) > limit:
             print(
                 f"[!] Warning: The text length exceeds the character limit of {limit} for language '{lang}', this might cause truncated audio."
