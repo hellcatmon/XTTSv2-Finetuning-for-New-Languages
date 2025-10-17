@@ -150,6 +150,8 @@ class XTTSDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Add recursion protection
         max_retries = 50
+        errors_encountered = []
+
         for attempt in range(max_retries):
             if self.is_eval:
                 sample = self.samples[index]
@@ -157,6 +159,10 @@ class XTTSDataset(torch.utils.data.Dataset):
             else:
                 # select a random language
                 lang = random.choice(list(self.samples.keys()))
+                # Check if language has any samples
+                if len(self.samples[lang]) == 0:
+                    errors_encountered.append(f"Language '{lang}' has no samples")
+                    continue
                 # select random sample
                 index = random.randint(0, len(self.samples[lang]) - 1)
                 sample = self.samples[lang][index]
@@ -173,9 +179,11 @@ class XTTSDataset(torch.utils.data.Dataset):
             # try to load the sample, if fails added it to the failed samples list
             try:
                 tseq, audiopath, wav, cond, cond_len, cond_idxs = self.load_item(sample)
-            except:
+            except Exception as e:
+                error_msg = f"Error loading {sample.get('audio_file', 'unknown')}: {str(e)}"
                 if self.debug_failures:
-                    print(f"error loading {sample['audio_file']} {sys.exc_info()}")
+                    print(error_msg)
+                errors_encountered.append(error_msg)
                 self.failed_samples.add(sample_id)
                 # Try next attempt with a different random sample
                 continue
@@ -188,10 +196,14 @@ class XTTSDataset(torch.utils.data.Dataset):
             ):
                 # Basically, this audio file is nonexistent or too long to be supported by the dataset.
                 # It's hard to handle this situation properly. Best bet is to return the a random valid token and skew the dataset somewhat as a result.
-                if self.debug_failures and wav is not None and tseq is not None:
-                    print(
-                        f"error loading {sample['audio_file']}: ranges are out of bounds; {wav.shape[-1]}, {tseq.shape[0]}"
-                    )
+                if wav is None:
+                    error_msg = f"{sample.get('audio_file', 'unknown')}: wav is None"
+                else:
+                    error_msg = f"{sample.get('audio_file', 'unknown')}: out of bounds - wav len: {wav.shape[-1]}, text len: {tseq.shape[0]}, max_wav: {self.max_wav_len}, max_text: {self.max_text_len}"
+
+                if self.debug_failures:
+                    print(error_msg)
+                errors_encountered.append(error_msg)
                 self.failed_samples.add(sample_id)
                 # Try next attempt with a different random sample
                 continue
@@ -212,8 +224,17 @@ class XTTSDataset(torch.utils.data.Dataset):
             }
             return res
 
-        # If we exhausted all retries, raise an error
-        raise RuntimeError(f"Failed to load a valid sample after {max_retries} attempts. Check your dataset.")
+        # If we exhausted all retries, raise an error with detailed information
+        error_summary = "\n".join(errors_encountered[:10])  # Show first 10 errors
+        total_samples = sum([len(v) for v in self.samples.values()]) if not self.is_eval else len(self.samples)
+        failed_count = len(self.failed_samples)
+
+        raise RuntimeError(
+            f"Failed to load a valid sample after {max_retries} attempts.\n"
+            f"Dataset info: {total_samples} total samples, {failed_count} failed samples\n"
+            f"Sample errors (first 10):\n{error_summary}\n"
+            f"Check your dataset paths, audio files, and metadata format."
+        )
 
     def __len__(self):
         if self.is_eval:
