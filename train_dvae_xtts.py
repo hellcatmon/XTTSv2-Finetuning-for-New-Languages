@@ -86,7 +86,7 @@ def train(output_path, train_csv_path, eval_csv_path="", language="en", lr=5e-6,
                 use_transposed_convs=False,
             )
 
-    dvae.load_state_dict(torch.load(dvae_pretrained), strict=False)
+    dvae.load_state_dict(torch.load(dvae_pretrained, weights_only=True), strict=False)
     dvae.cuda()
     opt = Adam(dvae.parameters(), lr = LEARNING_RATE)
     torch_mel_spectrogram_dvae = TorchMelSpectrogram(

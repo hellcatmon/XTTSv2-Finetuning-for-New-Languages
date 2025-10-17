@@ -70,6 +70,13 @@ Contains application-level implementations:
 ## Common Commands
 
 ### Environment Setup
+
+**Fast Installation with uv (Recommended - 10-100x faster than pip):**
+```bash
+./setup_with_uv.sh
+```
+
+Traditional pip installation:
 ```bash
 pip install -r requirements.txt
 ```

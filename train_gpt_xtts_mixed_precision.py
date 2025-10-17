@@ -150,7 +150,7 @@ def optimize_gpu_settings(args):
     torch.backends.cudnn.benchmark = True
 
     # Set memory allocator settings
-    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:512'
+    os.environ['PYTORCH_ALLOC_CONF'] = 'max_split_size_mb:512'
 
     # Print configuration
     gpu_name = torch.cuda.get_device_name(0)
@@ -334,6 +334,17 @@ def train_gpt_mixed_precision(args, mp_config):
     config = GPTTrainerConfig()
     config.load_json(XTTS_CONFIG_FILE)
 
+    # Remove incompatible parameters for newer trainer versions
+    # These parameters exist in old config files but are not supported by TrainerArgs anymore
+    incompatible_params = ['grad_clip', 'grad_clip_norm_type']
+    for param in incompatible_params:
+        if hasattr(config, param):
+            print(f" > Removing incompatible config parameter: {param}")
+            delattr(config, param)
+        # Also remove from __dict__ if present (Coqpit stores values there)
+        if param in config.__dict__:
+            del config.__dict__[param]
+
     config.epochs = args.num_epochs
     config.output_path = OUT_PATH
     config.model_args = model_args
@@ -403,7 +414,8 @@ def train_gpt_mixed_precision(args, mp_config):
             skip_train_epoch=False,
             start_with_eval=START_WITH_EVAL,
             grad_accum_steps=GRAD_ACUMM_STEPS,
-            grad_clip=args.gradient_clip_val,
+            # Note: grad_clip is not supported in newer trainer versions
+            # Gradient clipping is handled by the model's train_step if needed
         ),
         config,
         output_path=OUT_PATH,

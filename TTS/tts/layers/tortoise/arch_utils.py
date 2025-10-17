@@ -7,7 +7,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
-from transformers import LogitsWarper
+
+# LogitsWarper was merged into LogitsProcessor in transformers 4.x
+try:
+    from transformers import LogitsWarper
+except ImportError:
+    from transformers.generation.logits_process import LogitsProcessor as LogitsWarper
 
 from TTS.tts.layers.tortoise.xtransformers import ContinuousTransformerWrapper, RelativePositionBias
 

@@ -1,11 +1,20 @@
+import os
 import librosa
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from matplotlib.colors import LogNorm
 
-matplotlib.use("Agg")
+# Fix matplotlib backend issue in Colab/Jupyter environments
+# Must be set BEFORE importing matplotlib
+if 'MPLBACKEND' in os.environ:
+    backend = os.environ['MPLBACKEND']
+    # Replace inline backends with Agg for non-interactive environments
+    if 'inline' in backend or 'ipympl' in backend:
+        os.environ['MPLBACKEND'] = 'Agg'
+
+import matplotlib
+matplotlib.use("Agg")  # Set non-interactive backend before importing pyplot
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 
 
 def plot_alignment(alignment, info=None, fig_size=(16, 10), title=None, output_fig=False, plot_log=False):

@@ -11,8 +11,6 @@ import torch
 import torch.distributed as dist
 from torch import nn
 from transformers import (
-    BeamSearchScorer,
-    ConstrainedBeamSearchScorer,
     DisjunctiveConstraint,
     GenerationConfig,
     GenerationMixin,
@@ -21,6 +19,7 @@ from transformers import (
     PreTrainedModel,
     StoppingCriteriaList,
 )
+from transformers.generation.beam_search import BeamSearchScorer, ConstrainedBeamSearchScorer
 from transformers.generation.utils import GenerateOutput, SampleOutput, logger
 
 
