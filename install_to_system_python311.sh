@@ -48,13 +48,15 @@ fi
 
 print_success "Found: requirements.txt"
 
-# Step 1: Upgrade pip for Python 3.11
+# Step 1: Upgrade pip for Python 3.11 (optional)
 echo ""
-print_info "Step 1: Upgrading pip for Python 3.11..."
-python3.11 -m pip install --upgrade pip
+print_info "Step 1: Checking pip for Python 3.11..."
+
+# Try to upgrade pip, but don't fail if it's managed by system package manager
+python3.11 -m pip install --upgrade pip 2>/dev/null || print_warning "pip upgrade skipped (managed by system package manager)"
 
 PIP_VERSION=$(python3.11 -m pip --version | awk '{print $2}')
-print_success "pip upgraded: $PIP_VERSION"
+print_success "pip version: $PIP_VERSION"
 
 # Step 2: Install requirements.txt
 echo ""
