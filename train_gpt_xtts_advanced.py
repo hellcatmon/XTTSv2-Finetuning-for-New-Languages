@@ -206,32 +206,78 @@ def print_configuration(args):
 
 
 def optimize_gpu_settings(args):
-    """Apply GPU optimizations (P1)"""
+    """Apply GPU optimizations (P1) - GPU-specific configuration"""
     if not torch.cuda.is_available():
         print("⚠️  CUDA not available. Training on CPU will be very slow.")
-        return
+        return {"gpu_name": "CPU", "supports_tf32": False, "compute_capability": None}
 
-    # TF32
-    torch.backends.cuda.matmul.allow_tf32 = args.tf32_matmul
-    torch.backends.cudnn.allow_tf32 = args.tf32_cudnn
+    gpu_name = torch.cuda.get_device_name(0)
+    props = torch.cuda.get_device_properties(0)
+    compute_capability = f"{props.major}.{props.minor}"
 
-    # cuDNN benchmark
+    print("=" * 70)
+    print("🎮 GPU Configuration")
+    print("=" * 70)
+    print(f"GPU:                {gpu_name}")
+    print(f"Compute Capability: {compute_capability}")
+    print(f"Memory:             {props.total_memory / 1024**3:.1f} GB")
+
+    # Determine architecture
+    is_ampere_or_newer = props.major >= 8  # Ampere (A100, A6000, 3090, 4090, etc.)
+    is_turing = props.major == 7 and props.minor == 5  # Turing (T4, RTX 2080, etc.)
+    supports_tf32 = is_ampere_or_newer
+
+    # TF32 - Only available on Ampere+ (compute capability >= 8.0)
+    if args.tf32_matmul or args.tf32_cudnn:
+        if supports_tf32:
+            torch.backends.cuda.matmul.allow_tf32 = args.tf32_matmul
+            torch.backends.cudnn.allow_tf32 = args.tf32_cudnn
+            print(f"TF32 MatMul:        ✓ Enabled")
+            print(f"TF32 cuDNN:         ✓ Enabled")
+        else:
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
+            print(f"TF32:               ✗ Not supported (requires Ampere+, CC >= 8.0)")
+            print(f"                    → Using FP32 instead (still fast on {gpu_name})")
+    else:
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        print(f"TF32:               ✗ Disabled by user")
+
+    # cuDNN benchmark - Good for all GPUs with fixed input sizes
     torch.backends.cudnn.benchmark = True
+    print(f"cuDNN Benchmark:    ✓ Enabled")
 
-    # Memory allocator
-    os.environ['PYTORCH_ALLOC_CONF'] = 'max_split_size_mb:512'
+    # Memory allocator - Adjust based on GPU memory
+    # T4 has 16GB, more aggressive fragmentation management helps
+    if props.total_memory < 20 * 1024**3:  # Less than 20GB
+        os.environ['PYTORCH_ALLOC_CONF'] = 'max_split_size_mb:256,expandable_segments:True'
+        print(f"Memory Management:  ✓ Optimized for <20GB VRAM")
+    else:
+        os.environ['PYTORCH_ALLOC_CONF'] = 'max_split_size_mb:512'
+        print(f"Memory Management:  ✓ Standard configuration")
 
     # Anomaly detection
     if args.detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
-        print("⚠️  Anomaly detection enabled (slower, for debugging)")
+        print(f"Anomaly Detection:  ⚠️  Enabled (slower, for debugging)")
+
+    print("=" * 70 + "\n")
+
+    return {
+        "gpu_name": gpu_name,
+        "supports_tf32": supports_tf32,
+        "compute_capability": compute_capability,
+        "is_turing": is_turing,
+        "is_ampere_or_newer": is_ampere_or_newer
+    }
 
 
 def train_with_advanced_features(args):
     """Main training function with all P2 features"""
 
     # === Setup ===
-    optimize_gpu_settings(args)
+    gpu_info = optimize_gpu_settings(args)
 
     RUN_NAME = "GPT_XTTS_Advanced"
     OUT_PATH = args.output_path
@@ -350,14 +396,40 @@ def train_with_advanced_features(args):
 
     # === P2: Apply torch.compile ===
     if args.compile_model and hasattr(torch, 'compile'):
-        print(f"⚡ Compiling model (mode: {args.compile_mode})...")
+        print(f"\n⚡ Compiling model (mode: {args.compile_mode})...")
+
+        # GPU-specific compile options
+        compile_options = {"triton.cudagraphs": False}  # Disabled to prevent tensor overwriting
+
+        # T4 and Turing GPUs: Use reduce-overhead mode for better performance
+        # Ampere+: Can use max-autotune for more aggressive optimizations
+        if gpu_info.get("is_turing"):
+            recommended_mode = "reduce-overhead"
+            if args.compile_mode == "default":
+                print(f"  → Turing GPU detected: Using '{recommended_mode}' mode for better performance")
+                compile_mode = recommended_mode
+            else:
+                compile_mode = args.compile_mode
+        elif gpu_info.get("is_ampere_or_newer"):
+            recommended_mode = "max-autotune"
+            if args.compile_mode == "default":
+                print(f"  → Ampere+ GPU detected: Using '{recommended_mode}' mode for maximum speed")
+                compile_mode = recommended_mode
+            else:
+                compile_mode = args.compile_mode
+        else:
+            compile_mode = args.compile_mode
+
         try:
             model.xtts.gpt = torch.compile(
                 model.xtts.gpt,
-                mode=args.compile_mode,
-                fullgraph=False
+                mode=compile_mode,
+                fullgraph=False,
+                options=compile_options
             )
-            print("✓ Model compiled successfully")
+            print(f"✓ Model compiled successfully")
+            print(f"  Mode: {compile_mode}")
+            print(f"  CUDA graphs: Disabled (prevents backward pass errors)")
         except Exception as e:
             print(f"⚠️  Compilation failed: {e}")
             print("   Continuing without compilation")
