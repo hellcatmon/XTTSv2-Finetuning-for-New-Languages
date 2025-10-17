@@ -148,63 +148,72 @@ class XTTSDataset(torch.utils.data.Dataset):
         return tseq, audiopath, wav, cond, cond_len, cond_idxs
 
     def __getitem__(self, index):
-        if self.is_eval:
-            sample = self.samples[index]
-            sample_id = str(index)
-        else:
-            # select a random language
-            lang = random.choice(list(self.samples.keys()))
-            # select random sample
-            index = random.randint(0, len(self.samples[lang]) - 1)
-            sample = self.samples[lang][index]
-            # a unique id for each sampel to deal with fails
-            sample_id = lang + "_" + str(index)
+        # Add recursion protection
+        max_retries = 50
+        for attempt in range(max_retries):
+            if self.is_eval:
+                sample = self.samples[index]
+                sample_id = str(index)
+            else:
+                # select a random language
+                lang = random.choice(list(self.samples.keys()))
+                # select random sample
+                index = random.randint(0, len(self.samples[lang]) - 1)
+                sample = self.samples[lang][index]
+                # a unique id for each sampel to deal with fails
+                sample_id = lang + "_" + str(index)
 
-        # ignore samples that we already know that is not valid ones
-        if sample_id in self.failed_samples:
-            if self.debug_failures:
-                print(f"Ignoring sample {sample['audio_file']} because it was already ignored before !!")
-            # call get item again to get other sample
-            return self[1]
+            # ignore samples that we already know that is not valid ones
+            if sample_id in self.failed_samples:
+                if self.debug_failures:
+                    print(f"Ignoring sample {sample['audio_file']} because it was already ignored before !!")
+                # Try next attempt with a different random sample
+                continue
 
-        # try to load the sample, if fails added it to the failed samples list
-        try:
-            tseq, audiopath, wav, cond, cond_len, cond_idxs = self.load_item(sample)
-        except:
-            if self.debug_failures:
-                print(f"error loading {sample['audio_file']} {sys.exc_info()}")
-            self.failed_samples.add(sample_id)
-            return self[1]
+            # try to load the sample, if fails added it to the failed samples list
+            try:
+                tseq, audiopath, wav, cond, cond_len, cond_idxs = self.load_item(sample)
+            except:
+                if self.debug_failures:
+                    print(f"error loading {sample['audio_file']} {sys.exc_info()}")
+                self.failed_samples.add(sample_id)
+                # Try next attempt with a different random sample
+                continue
 
-        # check if the audio and text size limits and if it out of the limits, added it failed_samples
-        if (
-            wav is None
-            or (self.max_wav_len is not None and wav.shape[-1] > self.max_wav_len)
-            or (self.max_text_len is not None and tseq.shape[0] > self.max_text_len)
-        ):
-            # Basically, this audio file is nonexistent or too long to be supported by the dataset.
-            # It's hard to handle this situation properly. Best bet is to return the a random valid token and skew the dataset somewhat as a result.
-            if self.debug_failures and wav is not None and tseq is not None:
-                print(
-                    f"error loading {sample['audio_file']}: ranges are out of bounds; {wav.shape[-1]}, {tseq.shape[0]}"
-                )
-            self.failed_samples.add(sample_id)
-            return self[1]
+            # check if the audio and text size limits and if it out of the limits, added it failed_samples
+            if (
+                wav is None
+                or (self.max_wav_len is not None and wav.shape[-1] > self.max_wav_len)
+                or (self.max_text_len is not None and tseq.shape[0] > self.max_text_len)
+            ):
+                # Basically, this audio file is nonexistent or too long to be supported by the dataset.
+                # It's hard to handle this situation properly. Best bet is to return the a random valid token and skew the dataset somewhat as a result.
+                if self.debug_failures and wav is not None and tseq is not None:
+                    print(
+                        f"error loading {sample['audio_file']}: ranges are out of bounds; {wav.shape[-1]}, {tseq.shape[0]}"
+                    )
+                self.failed_samples.add(sample_id)
+                # Try next attempt with a different random sample
+                continue
 
-        res = {
-            # 'real_text': text,
-            "text": tseq,
-            "text_lengths": torch.tensor(tseq.shape[0], dtype=torch.long),
-            "wav": wav,
-            "wav_lengths": torch.tensor(wav.shape[-1], dtype=torch.long),
-            "filenames": audiopath,
-            "conditioning": cond.unsqueeze(1),
-            "cond_lens": torch.tensor(cond_len, dtype=torch.long)
-            if cond_len is not torch.nan
-            else torch.tensor([cond_len]),
-            "cond_idxs": torch.tensor(cond_idxs) if cond_idxs is not torch.nan else torch.tensor([cond_idxs]),
-        }
-        return res
+            # Successfully loaded sample
+            res = {
+                # 'real_text': text,
+                "text": tseq,
+                "text_lengths": torch.tensor(tseq.shape[0], dtype=torch.long),
+                "wav": wav,
+                "wav_lengths": torch.tensor(wav.shape[-1], dtype=torch.long),
+                "filenames": audiopath,
+                "conditioning": cond.unsqueeze(1),
+                "cond_lens": torch.tensor(cond_len, dtype=torch.long)
+                if cond_len is not torch.nan
+                else torch.tensor([cond_len]),
+                "cond_idxs": torch.tensor(cond_idxs) if cond_idxs is not torch.nan else torch.tensor([cond_idxs]),
+            }
+            return res
+
+        # If we exhausted all retries, raise an error
+        raise RuntimeError(f"Failed to load a valid sample after {max_retries} attempts. Check your dataset.")
 
     def __len__(self):
         if self.is_eval:
