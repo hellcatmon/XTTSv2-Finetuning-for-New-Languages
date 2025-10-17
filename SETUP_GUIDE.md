@@ -56,17 +56,22 @@ cd XTTSv2-Finetuning-for-New-Languages
    - Installs all requirements with UV (explicitly for Python 3.11)
    - Verifies packages are installed for Python 3.11
 
-6. **Jupyter Kernel Registration** ✅
-   - Installs ipykernel
+6. **Additional Packages** ✅
+   - Installs `kagglehub` for Kaggle dataset access
+   - Installs `huggingface_hub` for HuggingFace model access
+   - Installs `ipykernel` for Jupyter support
+
+7. **Jupyter Kernel Registration** ✅
    - Registers Python 3.11 kernel as "python311_xtts"
    - Enables use in Jupyter notebooks
 
-7. **Verification** ✅
+8. **Verification** ✅
    - Checks critical files exist
+   - Verifies additional packages (kagglehub, huggingface_hub, ipykernel)
    - Verifies CUDA availability
    - Confirms python3.11 command is available
 
-8. **Configuration Summary** ✅
+9. **Configuration Summary** ✅
    - Shows complete environment configuration
    - Displays hardware and CUDA info
    - Provides next steps
@@ -265,9 +270,18 @@ After running the setup script, verify:
 - [ ] `python3.11 --version` shows Python 3.11.x
 - [ ] `python --version` (in venv) shows Python 3.11.x
 - [ ] `pip list | grep torch` shows PyTorch installed
+- [ ] `pip list | grep kagglehub` shows kagglehub installed
+- [ ] `pip list | grep huggingface-hub` shows huggingface_hub installed
 - [ ] `jupyter kernelspec list` shows `python311_xtts`
 - [ ] All training scripts are present in the directory
 - [ ] CUDA is available (if using GPU): `python -c "import torch; print(torch.cuda.is_available())"`
+
+You can also verify the additional packages:
+```bash
+python -c "import kagglehub; print('kagglehub OK')"
+python -c "import huggingface_hub; print('huggingface_hub OK')"
+python -c "import ipykernel; print('ipykernel OK')"
+```
 
 ## 🆘 Support
 

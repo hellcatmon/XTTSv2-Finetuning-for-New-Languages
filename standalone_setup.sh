@@ -281,20 +281,27 @@ else
     exit 1
 fi
 
-# Step 8: Register Python 3.11 for Jupyter notebooks
+# Step 8: Install additional required packages
 echo ""
-echo "Step 8: Registering Python 3.11 kernel for Jupyter..."
+echo "Step 8: Installing additional required packages..."
 echo "--------------------------------------"
 
-# Check if ipykernel is installed, if not install it
-if ! python -c "import ipykernel" &> /dev/null; then
-    print_info "Installing ipykernel for Jupyter support..."
+ADDITIONAL_PACKAGES=("kagglehub" "huggingface_hub" "ipykernel")
+
+for package in "${ADDITIONAL_PACKAGES[@]}"; do
+    print_info "Installing $package..."
     if command -v uv &> /dev/null && [ "$UV_AVAILABLE" != false ]; then
-        uv pip install --python $(which python) ipykernel
+        uv pip install --python $(which python) "$package" -q
     else
-        pip install ipykernel
+        pip install "$package" -q
     fi
-fi
+    print_success "$package installed"
+done
+
+# Step 9: Register Python 3.11 for Jupyter notebooks
+echo ""
+echo "Step 9: Registering Python 3.11 kernel for Jupyter..."
+echo "--------------------------------------"
 
 # Register the kernel
 print_info "Registering Python 3.11 kernel as 'python311_xtts'..."
@@ -320,9 +327,9 @@ ELAPSED_TIME=$((END_TIME - START_TIME))
 ELAPSED_MIN=$((ELAPSED_TIME / 60))
 ELAPSED_SEC=$((ELAPSED_TIME % 60))
 
-# Step 9: Verify installation
+# Step 10: Verify installation
 echo ""
-echo "Step 9: Verifying installation..."
+echo "Step 10: Verifying installation..."
 echo "--------------------------------------"
 
 # Check for key project files
@@ -354,6 +361,16 @@ else
     print_error "Missing: TTS directory"
     VERIFICATION_PASSED=false
 fi
+
+# Verify additional packages
+print_info "Verifying additional packages..."
+for package in kagglehub huggingface_hub ipykernel; do
+    if python -c "import $package" 2>/dev/null; then
+        print_success "Found: $package"
+    else
+        print_warning "Missing: $package (may not be critical)"
+    fi
+done
 
 # Check CUDA availability
 print_info "Checking CUDA availability..."
