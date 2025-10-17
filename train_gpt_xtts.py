@@ -173,7 +173,8 @@ def train_gpt(metadatas, num_epochs, batch_size, grad_acumm, output_path, max_au
     config.logger_uri = LOGGER_URI
     config.audio = audio_config
     config.batch_size = BATCH_SIZE
-    config.num_loader_workers = 4
+    # Optimized DataLoader settings for better performance
+    config.num_loader_workers = 8  # Increased from 4 for better CPU utilization
     config.eval_split_max_size = 256
     config.print_step = 50
     config.plot_step = 100
@@ -234,13 +235,47 @@ def train_gpt(metadatas, num_epochs, batch_size, grad_acumm, output_path, max_au
     return trainer_out_path
 
 
+def optimize_gpu_settings(args):
+    """Apply GPU optimization settings"""
+    if not torch.cuda.is_available():
+        print("CUDA not available, skipping GPU optimizations")
+        return
+
+    # Enable TF32 for Ampere+ GPUs (3090, 4090, A100, etc.)
+    torch.backends.cuda.matmul.allow_tf32 = args.tf32_matmul
+    torch.backends.cudnn.allow_tf32 = args.tf32_cudnn
+
+    # Enable cuDNN benchmarking for consistent input sizes
+    torch.backends.cudnn.benchmark = True
+
+    # Set memory allocator settings for better memory management
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:512'
+
+    # Print GPU information
+    gpu_name = torch.cuda.get_device_name(0)
+    print("=" * 60)
+    print("GPU Optimization Settings")
+    print("=" * 60)
+    print(f"GPU Device: {gpu_name}")
+    print(f"TF32 MatMul: {'Enabled' if args.tf32_matmul else 'Disabled'}")
+    print(f"TF32 cuDNN:  {'Enabled' if args.tf32_cudnn else 'Disabled'}")
+    print(f"cuDNN Benchmark: Enabled")
+    print(f"CUDA Memory Config: max_split_size_mb=512")
+
+    # Recommendation for Ampere+ GPUs
+    if 'A100' in gpu_name or '3090' in gpu_name or '4090' in gpu_name or 'A6000' in gpu_name:
+        if not args.tf32_matmul or not args.tf32_cudnn:
+            print("\n⚠️  Recommendation: Enable TF32 for better performance on Ampere+ GPUs")
+            print("   Add: --tf32_matmul=True --tf32_cudnn=True")
+    print("=" * 60 + "\n")
+
+
 if __name__ == "__main__":
     parser = create_xtts_trainer_parser()
     args = parser.parse_args()
 
-    # Set Torch TF32 MatMul and CUDNN based on the command line arguments
-    torch.backends.cuda.matmul.allow_tf32 = args.tf32_matmul
-    torch.backends.cudnn.allow_tf32 = args.tf32_cudnn
+    # Apply GPU optimizations
+    optimize_gpu_settings(args)
 
     trainer_out_path = train_gpt(
         metadatas=args.metadatas,

@@ -103,14 +103,16 @@ def train(output_path, train_csv_path, eval_csv_path="", language="en", lr=5e-6,
     eval_dataset = DVAEDataset(eval_samples, 22050, True, max_wav_len=15*22050)
     train_dataset = DVAEDataset(train_samples, 22050, False, max_wav_len=15*22050)
 
+    # Optimized DataLoader settings for better performance
     eval_data_loader = DataLoader(
                         eval_dataset,
                         batch_size=batch_size,
                         shuffle=False,
                         drop_last=False,
                         collate_fn=eval_dataset.collate_fn,
-                        num_workers=0,
-                        pin_memory=False,
+                        num_workers=4,  # Increased from 0
+                        pin_memory=True,  # Enable for faster GPU transfer
+                        persistent_workers=True,  # Keep workers alive
                     )
 
     train_data_loader = DataLoader(
@@ -119,8 +121,10 @@ def train(output_path, train_csv_path, eval_csv_path="", language="en", lr=5e-6,
                         shuffle=False,
                         drop_last=False,
                         collate_fn=train_dataset.collate_fn,
-                        num_workers=4,
-                        pin_memory=False,
+                        num_workers=8,  # Increased from 4
+                        pin_memory=True,  # Enable for faster GPU transfer
+                        persistent_workers=True,  # Keep workers alive
+                        prefetch_factor=2,  # Prefetch batches
                     )
 
     torch.set_grad_enabled(True)
