@@ -250,7 +250,11 @@ if [ -f "requirements.txt" ]; then
     if command -v uv &> /dev/null && [ "$UV_AVAILABLE" != false ]; then
         print_info "Installing dependencies with uv (10-100x faster than pip)..."
         print_info "This may take a few minutes on first run..."
-        uv pip install -r requirements.txt
+
+        # Use uv with explicit Python 3.11 interpreter
+        print_info "Using Python 3.11 interpreter: $(which python)"
+        uv pip install --python $(which python) -r requirements.txt
+
         print_success "Dependencies installed successfully with uv"
         INSTALL_METHOD="uv"
     else
@@ -263,8 +267,50 @@ if [ -f "requirements.txt" ]; then
 
     # Count installed packages
     PACKAGE_COUNT=$(pip list --format=freeze | wc -l | tr -d ' ')
+
+    # Verify packages are installed for Python 3.11
+    print_info "Verifying packages are installed for Python 3.11..."
+    ACTUAL_PYTHON=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    if [[ $ACTUAL_PYTHON == "3.11" ]]; then
+        print_success "Confirmed: Packages installed for Python $ACTUAL_PYTHON"
+    else
+        print_error "Warning: Packages may be installed for Python $ACTUAL_PYTHON instead of 3.11"
+    fi
 else
     print_error "requirements.txt not found!"
+    exit 1
+fi
+
+# Step 8: Register Python 3.11 for Jupyter notebooks
+echo ""
+echo "Step 8: Registering Python 3.11 kernel for Jupyter..."
+echo "--------------------------------------"
+
+# Check if ipykernel is installed, if not install it
+if ! python -c "import ipykernel" &> /dev/null; then
+    print_info "Installing ipykernel for Jupyter support..."
+    if command -v uv &> /dev/null && [ "$UV_AVAILABLE" != false ]; then
+        uv pip install --python $(which python) ipykernel
+    else
+        pip install ipykernel
+    fi
+fi
+
+# Register the kernel
+print_info "Registering Python 3.11 kernel as 'python311_xtts'..."
+python -m ipykernel install --user --name=python311_xtts --display-name="Python 3.11 (XTTSv2)"
+print_success "Jupyter kernel registered successfully"
+print_info "You can now select 'Python 3.11 (XTTSv2)' in Jupyter notebooks"
+
+# Verify python3.11 command is available
+echo ""
+print_info "Verifying python3.11 command availability..."
+if command -v python3.11 &> /dev/null; then
+    PYTHON311_PATH=$(which python3.11)
+    print_success "python3.11 is available at: $PYTHON311_PATH"
+    print_success "python3.11 version: $(python3.11 --version)"
+else
+    print_error "python3.11 command not found in PATH!"
     exit 1
 fi
 
@@ -274,9 +320,9 @@ ELAPSED_TIME=$((END_TIME - START_TIME))
 ELAPSED_MIN=$((ELAPSED_TIME / 60))
 ELAPSED_SEC=$((ELAPSED_TIME % 60))
 
-# Step 8: Verify installation
+# Step 9: Verify installation
 echo ""
-echo "Step 8: Verifying installation..."
+echo "Step 9: Verifying installation..."
 echo "--------------------------------------"
 
 # Check for key project files
@@ -342,8 +388,10 @@ echo ""
 print_header "🐍 Python Environment:"
 echo "  Python Version:        $(python --version | awk '{print $2}')"
 echo "  Python Path:           $(which python)"
+echo "  python3.11 Command:    $(which python3.11)"
 echo "  Virtual Environment:   $VENV_DIR"
 echo "  Pip Version:           $PIP_VERSION"
+echo "  Jupyter Kernel:        python311_xtts (Python 3.11 (XTTSv2))"
 
 echo ""
 print_header "📦 Package Management:"
@@ -397,6 +445,12 @@ echo ""
 
 print_info "To deactivate the environment:"
 echo "  deactivate"
+echo ""
+
+print_info "To use in Jupyter Notebooks:"
+echo "  1. Start Jupyter: jupyter notebook or jupyter lab"
+echo "  2. Select kernel: 'Python 3.11 (XTTSv2)'"
+echo "  3. Or use python3.11 command directly in notebook cells"
 echo ""
 
 print_header "🚀 Quick Start Commands:"
