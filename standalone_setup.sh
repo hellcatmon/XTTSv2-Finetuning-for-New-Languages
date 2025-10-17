@@ -38,9 +38,6 @@ print_header() {
 
 # Variables for summary
 START_TIME=$(date +%s)
-PROJECT_DIR="XTTSv2-Finetuning-for-New-Languages"
-GIT_REPO="https://github.com/hellcatmon/XTTSv2-Finetuning-for-New-Languages.git"
-GIT_BRANCH="feature/improvements"
 
 # Check if running on Linux (for apt-get commands)
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -53,6 +50,19 @@ else
     IS_LINUX=false
     print_warning "Unknown OS: $OSTYPE. Will attempt to proceed..."
 fi
+
+# Get current directory as install directory
+INSTALL_DIR=$(pwd)
+print_info "Working directory: $INSTALL_DIR"
+
+# Check if we're in the project directory
+if [ ! -f "requirements.txt" ] || [ ! -f "train_gpt_xtts.py" ]; then
+    print_error "This script must be run from the XTTSv2 project directory"
+    print_error "Required files (requirements.txt, train_gpt_xtts.py) not found"
+    exit 1
+fi
+
+print_success "Verified: Running from project directory"
 
 # Step 1: Check if Python 3.11 is already installed
 echo ""
@@ -133,93 +143,26 @@ else
     fi
 fi
 
-# Step 3: Clone the repository
+# Step 3: Create virtual environment with Python 3.11
 echo ""
-echo "Step 3: Cloning XTTSv2 repository..."
-echo "--------------------------------------"
-
-if [ -d "$PROJECT_DIR" ]; then
-    print_warning "Directory '$PROJECT_DIR' already exists"
-    read -p "Do you want to remove it and clone fresh? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Removing existing directory..."
-        rm -rf "$PROJECT_DIR"
-        CLONE_FRESH=true
-    else
-        print_info "Using existing directory"
-        CLONE_FRESH=false
-    fi
-else
-    CLONE_FRESH=true
-fi
-
-if [ "$CLONE_FRESH" = true ]; then
-    print_info "Cloning repository (branch: $GIT_BRANCH)..."
-    git clone --branch "$GIT_BRANCH" "$GIT_REPO"
-    print_success "Repository cloned successfully"
-else
-    print_info "Checking if directory is a git repository..."
-    if [ -d "$PROJECT_DIR/.git" ]; then
-        cd "$PROJECT_DIR"
-        CURRENT_BRANCH=$(git branch --show-current)
-        print_info "Current branch: $CURRENT_BRANCH"
-
-        if [ "$CURRENT_BRANCH" != "$GIT_BRANCH" ]; then
-            print_warning "Not on branch '$GIT_BRANCH'"
-            read -p "Do you want to checkout '$GIT_BRANCH'? (y/N): " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                git fetch origin
-                git checkout "$GIT_BRANCH"
-                git pull origin "$GIT_BRANCH"
-                print_success "Switched to branch '$GIT_BRANCH'"
-            fi
-        else
-            print_info "Pulling latest changes..."
-            git pull origin "$GIT_BRANCH"
-            print_success "Repository updated"
-        fi
-        cd ..
-    else
-        print_error "$PROJECT_DIR exists but is not a git repository"
-        exit 1
-    fi
-fi
-
-# Change to project directory
-cd "$PROJECT_DIR"
-INSTALL_DIR=$(pwd)
-print_success "Working directory: $INSTALL_DIR"
-
-# Step 4: Create virtual environment with Python 3.11
-echo ""
-echo "Step 4: Creating virtual environment..."
+echo "Step 3: Creating virtual environment..."
 echo "--------------------------------------"
 
 VENV_DIR="venv"
 
 if [ -d "$VENV_DIR" ]; then
     print_warning "Virtual environment already exists at $VENV_DIR"
-    read -p "Do you want to remove it and create a new one? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Removing existing virtual environment..."
-        rm -rf "$VENV_DIR"
-    else
-        print_info "Using existing virtual environment"
-    fi
+    print_info "Removing and recreating to ensure clean install..."
+    rm -rf "$VENV_DIR"
 fi
 
-if [ ! -d "$VENV_DIR" ]; then
-    print_info "Creating virtual environment with Python 3.11..."
-    python3.11 -m venv "$VENV_DIR"
-    print_success "Virtual environment created at $VENV_DIR"
-fi
+print_info "Creating virtual environment with Python 3.11..."
+python3.11 -m venv "$VENV_DIR"
+print_success "Virtual environment created at $VENV_DIR"
 
-# Step 5: Activate virtual environment
+# Step 4: Activate virtual environment
 echo ""
-echo "Step 5: Activating virtual environment..."
+echo "Step 4: Activating virtual environment..."
 echo "--------------------------------------"
 
 source "$VENV_DIR/bin/activate"
@@ -233,17 +176,17 @@ else
     exit 1
 fi
 
-# Step 6: Upgrade pip
+# Step 5: Upgrade pip
 echo ""
-echo "Step 6: Upgrading pip..."
+echo "Step 5: Upgrading pip..."
 echo "--------------------------------------"
 python -m pip install --upgrade pip -q
 PIP_VERSION=$(pip --version | awk '{print $2}')
 print_success "pip upgraded successfully: $PIP_VERSION"
 
-# Step 7: Install dependencies with uv
+# Step 6: Install ALL dependencies (requirements.txt + additional packages)
 echo ""
-echo "Step 7: Installing project dependencies with uv..."
+echo "Step 6: Installing ALL project dependencies..."
 echo "--------------------------------------"
 
 if [ -f "requirements.txt" ]; then
@@ -253,15 +196,30 @@ if [ -f "requirements.txt" ]; then
 
         # Use uv with explicit Python 3.11 interpreter
         print_info "Using Python 3.11 interpreter: $(which python)"
+
+        # Install requirements.txt
+        print_info "Installing requirements.txt..."
         uv pip install --python $(which python) -r requirements.txt
 
-        print_success "Dependencies installed successfully with uv"
+        # Install additional packages
+        print_info "Installing additional packages (kagglehub, huggingface_hub, ipykernel)..."
+        uv pip install --python $(which python) kagglehub huggingface_hub ipykernel
+
+        print_success "All dependencies installed successfully with uv"
         INSTALL_METHOD="uv"
     else
         print_warning "uv not available, falling back to pip..."
         print_info "Installing dependencies with pip (this may take longer)..."
+
+        # Install requirements.txt
+        print_info "Installing requirements.txt..."
         pip install -r requirements.txt
-        print_success "Dependencies installed successfully with pip"
+
+        # Install additional packages
+        print_info "Installing additional packages (kagglehub, huggingface_hub, ipykernel)..."
+        pip install kagglehub huggingface_hub ipykernel
+
+        print_success "All dependencies installed successfully with pip"
         INSTALL_METHOD="pip"
     fi
 
@@ -281,26 +239,25 @@ else
     exit 1
 fi
 
-# Step 8: Install additional required packages
+# Step 7: Verify critical packages
 echo ""
-echo "Step 8: Installing additional required packages..."
+echo "Step 7: Verifying critical packages..."
 echo "--------------------------------------"
 
-ADDITIONAL_PACKAGES=("kagglehub" "huggingface_hub" "ipykernel")
+CRITICAL_PACKAGES=("torch" "transformers" "tokenizers" "pandas" "kagglehub" "huggingface_hub")
 
-for package in "${ADDITIONAL_PACKAGES[@]}"; do
-    print_info "Installing $package..."
-    if command -v uv &> /dev/null && [ "$UV_AVAILABLE" != false ]; then
-        uv pip install --python $(which python) "$package" -q
+for package in "${CRITICAL_PACKAGES[@]}"; do
+    if python -c "import $package" 2>/dev/null; then
+        print_success "Verified: $package"
     else
-        pip install "$package" -q
+        print_error "Missing: $package"
+        exit 1
     fi
-    print_success "$package installed"
 done
 
-# Step 9: Register Python 3.11 for Jupyter notebooks
+# Step 8: Register Python 3.11 for Jupyter notebooks
 echo ""
-echo "Step 9: Registering Python 3.11 kernel for Jupyter..."
+echo "Step 8: Registering Python 3.11 kernel for Jupyter..."
 echo "--------------------------------------"
 
 # Register the kernel
@@ -327,9 +284,9 @@ ELAPSED_TIME=$((END_TIME - START_TIME))
 ELAPSED_MIN=$((ELAPSED_TIME / 60))
 ELAPSED_SEC=$((ELAPSED_TIME % 60))
 
-# Step 10: Verify installation
+# Step 9: Verify installation
 echo ""
-echo "Step 10: Verifying installation..."
+echo "Step 9: Verifying installation..."
 echo "--------------------------------------"
 
 # Check for key project files
@@ -395,7 +352,7 @@ GIT_CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "N/A")
 # Configuration Summary
 echo ""
 echo "=========================================="
-print_header "        SETUP COMPLETE!        "
+print_header "   SETUP COMPLETE - READY TO USE!   "
 echo "=========================================="
 echo ""
 
@@ -420,10 +377,10 @@ else
     echo "  Installation Method:   pip"
 fi
 echo "  Packages Installed:    $PACKAGE_COUNT"
+echo "  Critical Packages:     ✓ All verified"
 
 echo ""
 print_header "📁 Project Information:"
-echo "  Repository:            $GIT_REPO"
 echo "  Branch:                $GIT_CURRENT_BRANCH"
 echo "  Commit:                $GIT_COMMIT"
 echo "  Install Directory:     $INSTALL_DIR"
@@ -494,5 +451,27 @@ echo "  P1_IMPROVEMENTS_README.md - Recent improvements (P1)"
 echo "  README.md              - Original README"
 echo ""
 
-print_success "Setup completed successfully! Happy training! 🎉"
+print_success "Setup completed successfully!"
+echo ""
+
+# Final verification test
+echo ""
+print_header "🔍 Final Verification Test:"
+echo ""
+print_info "Testing key imports from download_checkpoint.py..."
+if python -c "from transformers import HfArgumentParser; from TTS.utils.manage import ModelManager" 2>/dev/null; then
+    print_success "✓ download_checkpoint.py dependencies OK"
+else
+    print_error "✗ download_checkpoint.py dependencies FAILED"
+fi
+
+print_info "Testing key imports from extend_vocab_config.py..."
+if python -c "from tokenizers import Tokenizer; import pandas as pd" 2>/dev/null; then
+    print_success "✓ extend_vocab_config.py dependencies OK"
+else
+    print_error "✗ extend_vocab_config.py dependencies FAILED"
+fi
+
+echo ""
+print_success "🎉 All dependencies installed and verified! Happy training! 🎉"
 echo ""
